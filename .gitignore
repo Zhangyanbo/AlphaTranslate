@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Sketches
+sketch*.*
+*sketch*.*
+
 # Distribution / packaging
 .Python
 build/
