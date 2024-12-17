@@ -21,6 +21,6 @@ if __name__ == "__main__":
         f.write(result)
         # add process to file
         for i, p in enumerate(process):
-            f.write(f"## Step {i+1}:\n")
+            f.write(f"\n## Step {i+1}:\n")
             f.write(p)
-            f.write("\n\n")
+            f.write("\n")
