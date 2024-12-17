@@ -1,4 +1,4 @@
-from layers import TranslateLayer, ShortenLayer, Sequential
+from layers import TranslateLayer, ShortenLayer, Sequential, MinguoLayer, ModernLayer, RewriteLayer
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -8,12 +8,19 @@ if __name__ == "__main__":
 
     agent = Sequential(
         TranslateLayer(client),
-        ShortenLayer(client)
+        RewriteLayer(client),
+        RewriteLayer(client),
+        RewriteLayer(client),
     )
 
     text = open("text.md", "r").read()
-    result = agent(text, verbose=True)
+    result, process = agent(text, verbose=True, return_process=True)
     print(result)
     # save result to file
     with open("result.md", "w") as f:
         f.write(result)
+        # add process to file
+        for i, p in enumerate(process):
+            f.write(f"## Step {i+1}:\n")
+            f.write(p)
+            f.write("\n\n")

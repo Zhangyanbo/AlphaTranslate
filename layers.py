@@ -6,9 +6,18 @@ from openai.types.completion import Completion
 class ProcessLayer:
     def __init__(self, client: OpenAI):
         self.client = client
+        self.prompt_sys = ""
 
     def forward(self, text: str, **kwargs) -> str:
-        pass
+        completion = self.client.beta.chat.completions.parse(
+            model='gpt-4o',
+            messages=[
+                {"role": "system", "content": self.prompt_sys},
+                {"role": "user", "content": text},
+            ],
+            **kwargs,
+        )
+        return self.get_reply_text(completion)
     
     def __call__(self, text: str, **kwargs) -> str:
         return self.forward(text, **kwargs)
@@ -25,40 +34,37 @@ class TranslateLayer(ProcessLayer):
         super().__init__(client)
         self.prompt_sys = prompt_sys_translate
 
-    def forward(self, text: str, **kwargs) -> str:
-        completion = self.client.beta.chat.completions.parse(
-            model='gpt-4o',
-            messages=[
-                {"role": "system", "content": self.prompt_sys},
-                {"role": "user", "content": text},
-            ],
-            **kwargs,
-        )
-
-        return self.get_reply_text(completion)
-
 class ShortenLayer(ProcessLayer):
     def __init__(self, client: OpenAI):
         super().__init__(client)
         self.prompt_sys = prompt_sys_shorten
 
-    def forward(self, text: str, **kwargs) -> str:
-        completion = self.client.beta.chat.completions.parse(
-            model='gpt-4o',
-            messages=[
-                {"role": "system", "content": self.prompt_sys},
-                {"role": "user", "content": text},
-            ],
-            **kwargs,
-        )
-        return self.get_reply_text(completion)
+class MinguoLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.prompt_sys = prompt_sys_minguo
 
+class ModernLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.prompt_sys = prompt_sys_modern
+
+class RewriteLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.prompt_sys = prompt_sys_rewrite
 
 class Sequential(ProcessLayer):
     def __init__(self, *layers: ProcessLayer):
         self.layers = layers
 
-    def forward(self, text: str, verbose: bool = False, **kwargs) -> str:
+    def forward(self, text: str, verbose: bool = False, return_process: bool = False, **kwargs) -> str:
+        if return_process:
+            process = []
         for layer in tqdm(self.layers, desc="Processing layers", disable=not verbose):
             text = layer(text, **kwargs)
+            if return_process:
+                process.append(text)
+        if return_process:
+            return text, process
         return text
