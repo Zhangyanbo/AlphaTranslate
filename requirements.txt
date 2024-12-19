@@ -1,0 +1,4 @@
+openai>=1.42.0
+python-dotenv
+tqdm
+pydantic>=2.0.0
