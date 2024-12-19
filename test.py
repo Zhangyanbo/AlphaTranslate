@@ -1,43 +1,62 @@
-from layers import ProcessLayer, TranslateLayer, ShortenLayer, Sequential, MinguoLayer, ModernLayer, RewriteLayer
-from prompts import prompt_sys_revise, prompt_sys_professor
+from layers import ProcessLayer, TranslateLayer, ShortenLayer, Sequential, MinguoLayer, ModernLayer, RewriteLayer, JSONLayer
+from prompts import *
 from openai import OpenAI
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from typing import List
 
-class ReviseLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
-        super().__init__(client)
-        self.prompt_sys = prompt_sys_revise
-    
-    def forward(self, text: str, original: str, api_kwargs: dict = {}, **kwargs) -> str:
-        input = f"原文：{original}\n翻译：{text}"
-        completion = self.client.beta.chat.completions.parse(
-            model='gpt-4o',
-            messages=[
-                {"role": "system", "content": self.prompt_sys},
-                {"role": "user", "content": input},
-            ],
-            **api_kwargs,
-        )
-        return self.get_reply_text(completion)
 
 class ProfessorLayer(ProcessLayer):
     def __init__(self, client: OpenAI):
         super().__init__(client)
         self.prompt_sys = prompt_sys_professor
 
-class CollabLayer(ProcessLayer):
+class Chooser(BaseModel):
+    reason: str
+    best_translation_index: int
+
+class ChooserLayer(JSONLayer):
     def __init__(self, client: OpenAI):
         super().__init__(client)
-        self.revise = ReviseLayer(client)
+        self.prompt_sys = prompt_sys_chooser
+        self.schema = Chooser
+    
+    def prepare_user_text(self, texts: List[str], original: str) -> str:
+        # check if texts is a list
+        if not isinstance(texts, list):
+            raise ValueError(f"texts must be a list, but got: {type(texts)}")
+        translations = "\n".join([f"翻译版本 {i}: {t}" for i, t in enumerate(texts)])
+        return f"原文：{original}\n{translations}"
+
+    def forward(self, texts: List[str], original: str, api_kwargs: dict = {}, **kwargs) -> str:
+        if self.schema is None:
+            raise ValueError("Schema is not set")
+        
+        print("[Chooser] user text:", self.prepare_user_text(texts, original=original))
+        completion = self.client.beta.chat.completions.parse(
+            model='gpt-4o',
+            messages=[
+                {"role": "system", "content": self.prompt_sys},
+                {"role": "user", "content": self.prepare_user_text(texts, original=original)},
+            ],
+            response_format=self.schema,
+        )
+        return self.get_reply_json(completion)
+
+class CollabLayer(ProcessLayer):
+    def __init__(self, client: OpenAI, n: int = 3):
+        super().__init__(client)
         self.professor = ProfessorLayer(client)
+        self.chooser = ChooserLayer(client)
+        self.n = n
     
     def forward(self, text: str, original: str, **kwargs) -> str:
         # Pass original as part of kwargs
-        text = self.professor(text, **kwargs)
-        print(f'professor:\n{text}')
-        text = self.revise(text, original=original, **kwargs)
-        print(f'revise:\n{text}')
-        return text
+        texts = self.professor(text, n=self.n, **kwargs)
+        print(f'professor:\n{texts}')
+        choice = self.chooser(texts, original=original, **kwargs)
+        print(f'chooser:\n{choice}')
+        return texts[choice['best_translation_index']]
 
 
 if __name__ == "__main__":
