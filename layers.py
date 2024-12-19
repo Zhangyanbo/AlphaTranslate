@@ -2,19 +2,24 @@ from tqdm import tqdm
 from prompts import *
 from openai import OpenAI
 from openai.types.completion import Completion
+import json
 
 class ProcessLayer:
     def __init__(self, client: OpenAI):
         self.client = client
         self.prompt_sys = ""
+    
+    def prepare_user_text(self, text: str, **kwargs) -> str:
+        return text
 
-    def forward(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
+    def forward(self, text: str, api_kwargs: dict = {}, n=1, **kwargs) -> str:
         completion = self.client.beta.chat.completions.parse(
             model='gpt-4o',
             messages=[
                 {"role": "system", "content": self.prompt_sys},
-                {"role": "user", "content": text},
+                {"role": "user", "content": self.prepare_user_text(text, **kwargs)},
             ],
+            n=n,
             **api_kwargs,
         )
         return self.get_reply_text(completion)
@@ -28,6 +33,40 @@ class ProcessLayer:
             return completion.choices[0].message.content
         else:
             return [choice.message.content for choice in completion.choices]
+
+
+class JSONLayer:
+    def __init__(self, client: OpenAI):
+        self.client = client
+        self.prompt_sys = ""
+        self.schema = None
+    
+    def prepare_user_text(self, text: str, **kwargs) -> str:
+        return text
+
+    def forward(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
+        if self.schema is None:
+            raise ValueError("Schema is not set")
+        completion = self.client.beta.chat.completions.parse(
+            model='gpt-4o',
+            messages=[
+                {"role": "system", "content": self.prompt_sys},
+                {"role": "user", "content": self.prepare_user_text(text, **kwargs)},
+            ],
+            response_format=self.schema,
+            **api_kwargs,
+        )
+        return self.get_reply_json(completion)
+    
+    def __call__(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
+        return self.forward(text, api_kwargs=api_kwargs, **kwargs)
+    
+    @staticmethod
+    def get_reply_json(completion: "Completion") -> dict:
+        if len(completion.choices) == 1:
+            return json.loads(completion.choices[0].message.content)
+        else:
+            return [json.loads(choice.message.content) for choice in completion.choices]
 
 class TranslateLayer(ProcessLayer):
     def __init__(self, client: OpenAI):
