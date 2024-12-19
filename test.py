@@ -1,6 +1,32 @@
-from layers import TranslateLayer, ShortenLayer, Sequential, MinguoLayer, ModernLayer, RewriteLayer
+from layers import ProcessLayer, TranslateLayer, ShortenLayer, Sequential, MinguoLayer, ModernLayer, RewriteLayer
+from prompts import prompt_sys_revise, prompt_sys_professor
 from openai import OpenAI
 from dotenv import load_dotenv
+
+class ReviseLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.prompt_sys = prompt_sys_revise
+
+class ProfessorLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.prompt_sys = prompt_sys_professor
+
+class CollabLayer(ProcessLayer):
+    def __init__(self, client: OpenAI):
+        super().__init__(client)
+        self.revise = ReviseLayer(client)
+        self.professor = ProfessorLayer(client)
+    
+    def forward(self, text: str, original: str, **kwargs) -> str:
+        # Pass original as part of kwargs
+        text = self.professor(text, **kwargs)
+        print(f'professor:\n{text}')
+        text = self.revise(text, original=original, **kwargs)
+        print(f'revise:\n{text}')
+        return text
+
 
 if __name__ == "__main__":
     load_dotenv()
@@ -8,13 +34,13 @@ if __name__ == "__main__":
 
     agent = Sequential(
         TranslateLayer(client),
-        RewriteLayer(client),
-        RewriteLayer(client),
-        RewriteLayer(client),
+        CollabLayer(client),
+        CollabLayer(client),
+        CollabLayer(client),
     )
 
     text = open("text.md", "r").read()
-    result, process = agent(text, verbose=True, return_process=True)
+    result, process = agent(text, verbose=True, return_process=True, original=text)
     print(result)
     # save result to file
     with open("result.md", "w") as f:

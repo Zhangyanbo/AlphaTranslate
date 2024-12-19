@@ -8,19 +8,19 @@ class ProcessLayer:
         self.client = client
         self.prompt_sys = ""
 
-    def forward(self, text: str, **kwargs) -> str:
+    def forward(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
         completion = self.client.beta.chat.completions.parse(
             model='gpt-4o',
             messages=[
                 {"role": "system", "content": self.prompt_sys},
                 {"role": "user", "content": text},
             ],
-            **kwargs,
+            **api_kwargs,
         )
         return self.get_reply_text(completion)
     
-    def __call__(self, text: str, **kwargs) -> str:
-        return self.forward(text, **kwargs)
+    def __call__(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
+        return self.forward(text, api_kwargs=api_kwargs, **kwargs)
     
     @staticmethod
     def get_reply_text(completion: "Completion") -> str:
