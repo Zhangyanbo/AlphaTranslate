@@ -9,6 +9,10 @@ __pycache__/
 # Sketches
 sketch*.*
 *sketch*.*
+*.bak
+
+# System
+nohup.out
 
 # Distribution / packaging
 .Python
