@@ -7,6 +7,18 @@ class ReviseLayer(ProcessLayer):
     def __init__(self, client: OpenAI):
         super().__init__(client)
         self.prompt_sys = prompt_sys_revise
+    
+    def forward(self, text: str, original: str, api_kwargs: dict = {}, **kwargs) -> str:
+        input = f"原文：{original}\n翻译：{text}"
+        completion = self.client.beta.chat.completions.parse(
+            model='gpt-4o',
+            messages=[
+                {"role": "system", "content": self.prompt_sys},
+                {"role": "user", "content": input},
+            ],
+            **api_kwargs,
+        )
+        return self.get_reply_text(completion)
 
 class ProfessorLayer(ProcessLayer):
     def __init__(self, client: OpenAI):
