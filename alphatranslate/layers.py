@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from prompts import *
+from .prompts import *
 from openai import OpenAI
 from openai.types.completion import Completion
 import json
@@ -10,9 +10,12 @@ class ProcessLayer:
         self.prompt_sys = ""
     
     def prepare_user_text(self, text: str, **kwargs) -> str:
-        return text
+        return f"{text}"
 
     def forward(self, text: str, api_kwargs: dict = {}, n=1, **kwargs) -> str:
+        # print self name
+        print(f'[{self.__class__.__name__}] system prompt:\n', self.prompt_sys, '\n')
+        print(f'[{self.__class__.__name__}] user prompt:\n', self.prepare_user_text(text, **kwargs), '\n')
         completion = self.client.beta.chat.completions.parse(
             model='gpt-4o',
             messages=[
@@ -47,6 +50,8 @@ class JSONLayer:
     def forward(self, text: str, api_kwargs: dict = {}, **kwargs) -> str:
         if self.schema is None:
             raise ValueError("Schema is not set")
+        print(f'[{self.__class__.__name__}] system prompt:\n', self.prompt_sys, '\n')
+        print(f'[{self.__class__.__name__}] user prompt:\n', self.prepare_user_text(text, **kwargs), '\n')
         completion = self.client.beta.chat.completions.parse(
             model='gpt-4o',
             messages=[
@@ -69,29 +74,9 @@ class JSONLayer:
             return [json.loads(choice.message.content) for choice in completion.choices]
 
 class TranslateLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
+    def __init__(self, client: OpenAI, reference: str):
         super().__init__(client)
-        self.prompt_sys = prompt_sys_translate
-
-class ShortenLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
-        super().__init__(client)
-        self.prompt_sys = prompt_sys_shorten
-
-class MinguoLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
-        super().__init__(client)
-        self.prompt_sys = prompt_sys_minguo
-
-class ModernLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
-        super().__init__(client)
-        self.prompt_sys = prompt_sys_modern
-
-class RewriteLayer(ProcessLayer):
-    def __init__(self, client: OpenAI):
-        super().__init__(client)
-        self.prompt_sys = prompt_sys_rewrite
+        self.prompt_sys = prompt_sys_translate.format(reference=reference)
 
 class Sequential(ProcessLayer):
     def __init__(self, *layers: ProcessLayer):
